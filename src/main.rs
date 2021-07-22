@@ -3,35 +3,94 @@ use tobj;
 
 struct Plane {
     mass: f32,
-    position: Vec3,
+    head: Vec3,
+    center: Vec3,
+    right_wing_tip: Vec3,
     velocity: Vec3,
-    mesh: Mesh,
+    mesh: macroquad::models::Mesh,
+    camera: Camera3D,
 }
 
 impl Plane {
-    fn new(mass: f32, position: Vec3, mesh: Mesh) -> Self {
-        Self {
+    fn new(mass: f32, mesh: Mesh) -> Self {
+        let mut plane = Self {
             mass,
-            position,
+            head: _get_head_from_vertices(&mesh.vertices),
+            center: vec3(0., 0., 0.),
+            right_wing_tip: _get_right_wing_tip_from_vertices(&mesh.vertices),
             velocity: vec3(0., 0., 0.),
             mesh,
-        }
+            camera: Camera3D {
+                ..Default::default()
+            },
+        };
+        plane.camera.position = plane.up() * 2. + plane.forward() * -3.;
+        plane.camera.target = plane.forward() * 3.;
+        plane.camera.up = plane.up();
+        plane
     }
     fn draw(&self) {
         draw_mesh(&self.mesh);
     }
+
     fn update(&mut self, _dt: f32, _thrust: &Vec3, _wind: &Vec3) {}
+    fn get_center(&self) -> Vec3 {
+        self.mesh
+            .vertices
+            .iter()
+            .map(|a| a.position)
+            .reduce(|current, new| current + new)
+            .unwrap()
+            / (self.mesh.vertices.len() as f32)
+    }
+    fn up(&self) -> Vec3 {
+        (self.right_wing_tip - self.center)
+            .cross(self.head - self.center)
+            .normalize()
+    }
+    fn forward(&self) -> Vec3 {
+        (self.head - self.center).normalize()
+    }
+    fn right(&self) -> Vec3 {
+        (self.right_wing_tip - self.center).normalize()
+    }
+}
+
+fn _get_vertices_from_mesh(mesh: &tobj::Mesh) -> Vec<macroquad::models::Vertex> {
+    (0..mesh.positions.len() / 3)
+        .zip(0..mesh.texcoords.len() / 2)
+        .map(|(v_index, uv)| macroquad::models::Vertex {
+            position: vec3(
+                mesh.positions[3 * v_index],
+                mesh.positions[3 * v_index + 1],
+                mesh.positions[3 * v_index + 2],
+            ),
+            uv: vec2(mesh.texcoords[2 * uv], mesh.texcoords[2 * uv + 1]),
+            color: Color::from_rgba(127, 127, 127, 255),
+        })
+        .collect::<Vec<macroquad::models::Vertex>>()
+}
+
+fn _get_head_from_vertices(vertices: &Vec<macroquad::models::Vertex>) -> macroquad::math::Vec3 {
+    vertices
+        .iter()
+        .map(|vertex| vertex.position)
+        .max_by_key(|position| (position.x * 100.) as usize)
+        .unwrap()
+}
+
+fn _get_right_wing_tip_from_vertices(
+    vertices: &Vec<macroquad::models::Vertex>,
+) -> macroquad::math::Vec3 {
+    vertices
+        .iter()
+        .map(|vertex| vertex.position)
+        .max_by_key(|position| (position.z * 100.) as usize)
+        .unwrap()
 }
 
 #[macroquad::main("Flight Simulator")]
 async fn main() {
-    let mut camera = Camera3D {
-        position: vec3(-20., 15., 0.),
-        up: vec3(0., 1., 0.),
-        target: vec3(0., 0., 0.),
-        ..Default::default()
-    };
-
     let (models, _materials) = tobj::load_obj(
         "plane.obj",
         &tobj::LoadOptions {
@@ -46,69 +105,33 @@ async fn main() {
     ));
 
     let mesh = &models[0].mesh;
-    println!("{}", mesh.positions.len());
 
-    let mut vertices = Vec::new();
-    for (vp, uv) in (0..mesh.positions.len() / 3).zip(0..mesh.texcoords.len() / 2) {
-        vertices.push(macroquad::models::Vertex {
-            position: vec3(
-                mesh.positions[3 * vp],
-                mesh.positions[3 * vp + 1],
-                mesh.positions[3 * vp + 2],
-            ),
-            uv: vec2(mesh.texcoords[2 * uv], mesh.texcoords[2 * uv + 1]),
-            color: Color::from_rgba(163, 190, 140, 255),
-        })
-    }
+    let vertices: Vec<macroquad::models::Vertex> = _get_vertices_from_mesh(mesh);
 
     let mut plane: Plane = Plane::new(
         100.,
-        vec3(0., 0., 0.),
         Mesh {
             vertices,
             indices: mesh.indices.iter().map(|x| *x as u16).collect::<Vec<u16>>(),
             texture,
         },
     );
+
     loop {
         let dt = get_frame_time();
 
         clear_background(LIGHTGRAY);
         draw_grid(50, 1.0, RED, GREEN);
 
-        let camera_up: Vec3 = (camera.up).normalize();
-        let camera_forward: Vec3 = (camera.target - camera.position).normalize();
-        let camera_right: Vec3 = (camera_forward.cross(camera_up)).normalize();
-
         if is_key_down(KeyCode::Escape) {
             break;
         }
-        if is_key_down(KeyCode::W) {
-            camera.position += camera_forward * 2.;
-        }
-        if is_key_down(KeyCode::S) {
-            camera.position += camera_forward * -2.;
-        }
-        if is_key_down(KeyCode::D) {
-            camera.position += camera_right * 2.;
-        }
-        if is_key_down(KeyCode::A) {
-            camera.position += camera_right * -2.;
-        }
-        if is_key_down(KeyCode::Up) {
-            camera.position += camera_up * 2.;
-        }
-        if is_key_down(KeyCode::Down) {
-            camera.position += camera_up * -2.;
-        }
-
-        // camera.position += vec3(1., 1., 1.);
-        set_camera(&camera);
 
         let thrust = vec3(0., 0., 0.);
         let wind = vec3(0., 0., 0.);
         plane.update(dt, &thrust, &wind);
         plane.draw();
+        set_camera(&plane.camera);
 
         next_frame().await
     }
