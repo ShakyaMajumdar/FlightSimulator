@@ -75,7 +75,7 @@ fn _get_head_from_vertices(vertices: &Vec<macroquad::models::Vertex>) -> macroqu
     vertices
         .iter()
         .map(|vertex| vertex.position)
-        .max_by_key(|position| (position.x * 100.) as usize)
+        .max_by(|this, other| this.x.partial_cmp(&other.x).unwrap())
         .unwrap()
 }
 
@@ -131,6 +131,8 @@ async fn main() {
         let wind = vec3(0., 0., 0.);
         plane.update(dt, &thrust, &wind);
         plane.draw();
+
+        draw_sphere(plane.head, 0.5, None, RED);
         set_camera(&plane.camera);
 
         next_frame().await
