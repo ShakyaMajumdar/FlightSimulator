@@ -1,5 +1,4 @@
 use macroquad::prelude::*;
-use tobj;
 
 struct Plane {
     mass: f32,
@@ -16,7 +15,7 @@ impl Plane {
         let mut plane = Self {
             mass,
             head: _get_head_from_vertices(&mesh.vertices),
-            center: vec3(0., 0., 0.),
+            center: _get_center_from_vertices(&mesh.vertices),
             right_wing_tip: _get_right_wing_tip_from_vertices(&mesh.vertices),
             velocity: vec3(0., 0., 0.),
             mesh,
@@ -32,17 +31,32 @@ impl Plane {
     fn draw(&self) {
         draw_mesh(&self.mesh);
     }
+    fn translate_by(&mut self, move_vector: Vec3) {
+        for vertex in &mut self.mesh.vertices {
+            vertex.position += move_vector;
+        }
+        self.head += move_vector;
+        self.right_wing_tip += move_vector;
+        self.center += move_vector;
+        self.camera.position += move_vector;
+        self.camera.target += move_vector;
+        self.camera.up = self.up();
+    }
+
+    fn rotate_by(&mut self, axis: &Vec3, angle: f32) {
+        let rotation_matrix = glam::Mat3::from_axis_angle(*axis, angle);
+        for vertex in &mut self.mesh.vertices {
+            vertex.position = rotation_matrix.mul_vec3(vertex.position);
+        }
+        self.head = rotation_matrix.mul_vec3(self.head);
+        self.right_wing_tip = rotation_matrix.mul_vec3(self.right_wing_tip);
+        self.center = rotation_matrix.mul_vec3(self.center);
+        self.camera.position = rotation_matrix.mul_vec3(self.camera.position);
+        self.camera.target = rotation_matrix.mul_vec3(self.camera.target);
+        self.camera.up = self.up()
+    }
 
     fn update(&mut self, _dt: f32, _thrust: &Vec3, _wind: &Vec3) {}
-    fn get_center(&self) -> Vec3 {
-        self.mesh
-            .vertices
-            .iter()
-            .map(|a| a.position)
-            .reduce(|current, new| current + new)
-            .unwrap()
-            / (self.mesh.vertices.len() as f32)
-    }
     fn up(&self) -> Vec3 {
         (self.right_wing_tip - self.center)
             .cross(self.head - self.center)
@@ -89,8 +103,16 @@ fn _get_right_wing_tip_from_vertices(
         .unwrap()
 }
 
-#[macroquad::main("Flight Simulator")]
-async fn main() {
+fn _get_center_from_vertices(vertices: &Vec<macroquad::models::Vertex>) -> Vec3 {
+    vertices
+        .iter()
+        .map(|a| a.position)
+        .reduce(|current, new| current + new)
+        .unwrap()
+        / (vertices.len() as f32)
+}
+
+fn load_model() -> Mesh {
     let (models, _materials) = tobj::load_obj(
         "plane.obj",
         &tobj::LoadOptions {
@@ -105,17 +127,18 @@ async fn main() {
     ));
 
     let mesh = &models[0].mesh;
-
     let vertices: Vec<macroquad::models::Vertex> = _get_vertices_from_mesh(mesh);
 
-    let mut plane: Plane = Plane::new(
-        100.,
-        Mesh {
-            vertices,
-            indices: mesh.indices.iter().map(|x| *x as u16).collect::<Vec<u16>>(),
-            texture,
-        },
-    );
+    Mesh {
+        vertices,
+        indices: mesh.indices.iter().map(|x| *x as u16).collect::<Vec<u16>>(),
+        texture,
+    }
+}
+
+#[macroquad::main("Flight Simulator")]
+async fn main() {
+    let mut plane: Plane = Plane::new(100., load_model());
 
     loop {
         let dt = get_frame_time();
@@ -132,7 +155,6 @@ async fn main() {
         plane.update(dt, &thrust, &wind);
         plane.draw();
 
-        draw_sphere(plane.head, 0.5, None, RED);
         set_camera(&plane.camera);
 
         next_frame().await
