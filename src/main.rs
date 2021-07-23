@@ -142,7 +142,7 @@ fn _get_center_from_vertices(vertices: &Vec<macroquad::models::Vertex>) -> Vec3 
 
 fn load_model() -> Mesh {
     let (models, _materials) = tobj::load_obj(
-        "plane.obj",
+        "assets/plane.obj",
         &tobj::LoadOptions {
             triangulate: true,
             ..Default::default()
@@ -150,7 +150,7 @@ fn load_model() -> Mesh {
     )
     .expect("Failed to load");
     let texture = Some(Texture2D::from_file_with_format(
-        include_bytes!("../texture.png"),
+        include_bytes!("../assets/texture.png"),
         None,
     ));
 
