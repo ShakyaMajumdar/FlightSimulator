@@ -185,6 +185,18 @@ async fn main() {
         if is_key_down(KeyCode::D) {
             torque.y = -0.1;
         }
+        if is_key_down(KeyCode::Up) {
+            torque.z = 0.1;
+        }
+        if is_key_down(KeyCode::Down) {
+            torque.z = -0.1;
+        }
+        if is_key_down(KeyCode::Left) {
+            torque.x = -0.1;
+        }
+        if is_key_down(KeyCode::Right) {
+            torque.x = 0.1;
+        }
 
         plane.update(dt, &thrust, &torque, &wind, &gravity);
         plane.draw();
