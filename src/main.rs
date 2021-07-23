@@ -6,6 +6,7 @@ struct Plane {
     center: Vec3,
     right_wing_tip: Vec3,
     velocity: Vec3,
+    angular_velocity: Vec3,
     mesh: macroquad::models::Mesh,
     camera: Camera3D,
 }
@@ -17,7 +18,8 @@ impl Plane {
             head: _get_head_from_vertices(&mesh.vertices),
             center: _get_center_from_vertices(&mesh.vertices),
             right_wing_tip: _get_right_wing_tip_from_vertices(&mesh.vertices),
-            velocity: vec3(0., 0., 0.),
+            velocity: Vec3::ZERO,
+            angular_velocity: Vec3::ZERO,
             mesh,
             camera: Camera3D {
                 ..Default::default()
@@ -43,7 +45,7 @@ impl Plane {
         self.camera.up = self.up();
     }
 
-    fn rotate_by(&mut self, axis: &Vec3, angle: f32) {
+    fn rotate_by_axis_angle(&mut self, axis: &Vec3, angle: f32) {
         let rotation_matrix = glam::Mat3::from_axis_angle(*axis, angle);
         for vertex in &mut self.mesh.vertices {
             vertex.position = rotation_matrix.mul_vec3(vertex.position);
@@ -56,7 +58,20 @@ impl Plane {
         self.camera.up = self.up()
     }
 
-    fn update(&mut self, _dt: f32, _thrust: &Vec3, _wind: &Vec3) {}
+    fn rotate_by(&mut self, rotate_vector: Vec3) {
+        self.rotate_by_axis_angle(&self.forward(), rotate_vector.x);
+        self.rotate_by_axis_angle(&self.up(), rotate_vector.y);
+        self.rotate_by_axis_angle(&self.right(), rotate_vector.z);
+    }
+
+    fn update(&mut self, dt: f32, thrust: &Vec3, torque: &Vec3, wind: &Vec3, gravity: &Vec3) {
+        let acceleration = *thrust + *wind + *gravity;
+        let angular_acceleration = *torque;
+        self.angular_velocity += angular_acceleration * dt;
+        self.velocity += acceleration * dt;
+        self.translate_by(self.velocity * dt);
+        self.rotate_by(self.angular_velocity * dt);
+    }
     fn up(&self) -> Vec3 {
         (self.right_wing_tip - self.center)
             .cross(self.head - self.center)
@@ -64,6 +79,9 @@ impl Plane {
     }
     fn forward(&self) -> Vec3 {
         (self.head - self.center).normalize()
+    }
+    fn backward(&self) -> Vec3 {
+        -self.forward()
     }
     fn right(&self) -> Vec3 {
         (self.right_wing_tip - self.center).normalize()
@@ -140,19 +158,35 @@ fn load_model() -> Mesh {
 async fn main() {
     let mut plane: Plane = Plane::new(100., load_model());
 
+    let gravity = vec3(0., 0., 0.);
+    let wind = Vec3::ZERO;
+
     loop {
         let dt = get_frame_time();
 
         clear_background(LIGHTGRAY);
         draw_grid(50, 1.0, RED, GREEN);
 
+        let mut thrust = Vec3::ZERO;
+        let mut torque = Vec3::ZERO;
+
         if is_key_down(KeyCode::Escape) {
             break;
         }
+        if is_key_down(KeyCode::W) {
+            thrust += plane.forward() * 0.2;
+        }
+        if is_key_down(KeyCode::S) {
+            thrust += plane.backward() * 0.1;
+        }
+        if is_key_down(KeyCode::A) {
+            torque.y = 0.1;
+        }
+        if is_key_down(KeyCode::D) {
+            torque.y = -0.1;
+        }
 
-        let thrust = vec3(0., 0., 0.);
-        let wind = vec3(0., 0., 0.);
-        plane.update(dt, &thrust, &wind);
+        plane.update(dt, &thrust, &torque, &wind, &gravity);
         plane.draw();
 
         set_camera(&plane.camera);
