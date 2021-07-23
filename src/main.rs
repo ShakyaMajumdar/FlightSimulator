@@ -2,6 +2,7 @@ use macroquad::prelude::*;
 
 struct Plane {
     mass: f32,
+    area: f32,
     head: Vec3,
     center: Vec3,
     right_wing_tip: Vec3,
@@ -12,9 +13,10 @@ struct Plane {
 }
 
 impl Plane {
-    fn new(mass: f32, mesh: Mesh) -> Self {
+    fn new(mass: f32, area: f32, mesh: Mesh) -> Self {
         let mut plane = Self {
             mass,
+            area,
             head: _get_head_from_vertices(&mesh.vertices),
             center: _get_center_from_vertices(&mesh.vertices),
             right_wing_tip: _get_right_wing_tip_from_vertices(&mesh.vertices),
@@ -25,7 +27,7 @@ impl Plane {
                 ..Default::default()
             },
         };
-        plane.camera.position = plane.up() * 2. + plane.forward() * -3.;
+        plane.camera.position = plane.up() * 2. + plane.forward() * -2.;
         plane.camera.target = plane.forward() * 3.;
         plane.camera.up = plane.up();
         plane
@@ -65,10 +67,18 @@ impl Plane {
     }
 
     fn update(&mut self, dt: f32, thrust: &Vec3, torque: &Vec3, wind: &Vec3, gravity: &Vec3) {
-        let acceleration = *thrust + *wind + *gravity;
+        let lift_coeff = 0.005;
+        let area_component =
+            ((self.area * self.forward()).cross(self.velocity.normalize_or_zero())).length();
+        let lift = lift_coeff * self.velocity.dot(self.velocity) * area_component * self.up();
+
+        let acceleration = lift + *thrust + *wind + *gravity;
         let angular_acceleration = *torque;
         self.angular_velocity += angular_acceleration * dt;
         self.velocity += acceleration * dt;
+        if self.center.y <= 1. {
+            self.velocity.y = 0.;
+        }
         self.translate_by(self.velocity * dt);
         self.rotate_by(self.angular_velocity * dt);
     }
@@ -156,9 +166,9 @@ fn load_model() -> Mesh {
 
 #[macroquad::main("Flight Simulator")]
 async fn main() {
-    let mut plane: Plane = Plane::new(100., load_model());
+    let mut plane: Plane = Plane::new(100., 10., load_model());
 
-    let gravity = vec3(0., 0., 0.);
+    let gravity = Vec3::Y * -0.5;
     let wind = Vec3::ZERO;
 
     loop {
@@ -174,10 +184,10 @@ async fn main() {
             break;
         }
         if is_key_down(KeyCode::W) {
-            thrust += plane.forward() * 0.2;
+            thrust += plane.forward() * 0.5;
         }
         if is_key_down(KeyCode::S) {
-            thrust += plane.backward() * 0.1;
+            thrust += plane.backward() * 0.5;
         }
         if is_key_down(KeyCode::A) {
             torque.y = 0.1;
