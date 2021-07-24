@@ -50,13 +50,15 @@ impl Plane {
     fn rotate_by_axis_angle(&mut self, axis: &Vec3, angle: f32) {
         let rotation_matrix = glam::Mat3::from_axis_angle(*axis, angle);
         for vertex in &mut self.mesh.vertices {
-            vertex.position = rotation_matrix.mul_vec3(vertex.position);
+            vertex.position = rotation_matrix.mul_vec3(vertex.position - self.center) + self.center;
         }
-        self.head = rotation_matrix.mul_vec3(self.head);
-        self.right_wing_tip = rotation_matrix.mul_vec3(self.right_wing_tip);
-        self.center = rotation_matrix.mul_vec3(self.center);
-        self.camera.position = rotation_matrix.mul_vec3(self.camera.position);
-        self.camera.target = rotation_matrix.mul_vec3(self.camera.target);
+        self.head = rotation_matrix.mul_vec3(self.head - self.center) + self.center;
+        self.right_wing_tip =
+            rotation_matrix.mul_vec3(self.right_wing_tip - self.center) + self.center;
+        self.camera.position =
+            rotation_matrix.mul_vec3(self.camera.position - self.center) + self.center;
+        self.camera.target =
+            rotation_matrix.mul_vec3(self.camera.target - self.center) + self.center;
         self.camera.up = self.up()
     }
 
