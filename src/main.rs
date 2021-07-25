@@ -1,8 +1,6 @@
 use macroquad::prelude::*;
 
 struct Plane {
-    mass: f32,
-    area: f32,
     head: Vec3,
     center: Vec3,
     right_wing_tip: Vec3,
@@ -13,10 +11,8 @@ struct Plane {
 }
 
 impl Plane {
-    fn new(mass: f32, area: f32, mesh: Mesh) -> Self {
+    fn new(mesh: Mesh) -> Self {
         let mut plane = Self {
-            mass,
-            area,
             head: _get_head_from_vertices(&mesh.vertices),
             center: _get_center_from_vertices(&mesh.vertices),
             right_wing_tip: _get_right_wing_tip_from_vertices(&mesh.vertices),
@@ -68,17 +64,34 @@ impl Plane {
         self.rotate_by_axis_angle(&self.right(), rotate_vector.z);
     }
 
-    fn update(&mut self, dt: f32, thrust: &Vec3, torque: &Vec3, wind: &Vec3, gravity: &Vec3) {
-        let lift_coeff = 0.005;
-        let area_component =
-            ((self.area * self.forward()).cross(self.velocity.normalize_or_zero())).length();
-        let lift = lift_coeff * self.velocity.dot(self.velocity) * area_component * self.up();
+    fn get_aerodynamic_force(&self) -> Vec3 {
+        let mut res = Vec3::ZERO;
+        for [i, j, k] in self.mesh.indices.chunks_exact(3).map(|index_group| {
+            [
+                self.mesh.vertices[index_group[0] as usize].position,
+                self.mesh.vertices[index_group[1] as usize].position,
+                self.mesh.vertices[index_group[2] as usize].position,
+            ]
+        }) {
+            let side1 = i - j;
+            let side2 = j - k;
 
-        let acceleration = lift + *thrust + *wind + *gravity;
+            let area_vector = side1.cross(side2) * 0.5;
+            let force = self.velocity.dot(i.normalize()).powi(2) * area_vector;
+            res += force;
+        }
+        res * 0.1
+    }
+
+    fn update(&mut self, dt: f32, thrust: &Vec3, torque: &Vec3, wind: &Vec3, gravity: &Vec3) {
+        let aerodynamic_force = self.get_aerodynamic_force();
+
+        draw_sphere(self.center, 0.1, None, BLUE);
+        let acceleration = aerodynamic_force + *thrust + *wind + *gravity;
         let angular_acceleration = *torque;
         self.angular_velocity += angular_acceleration * dt;
         self.velocity += acceleration * dt;
-        if self.center.y <= 1. {
+        if self.center.y <= 1. && self.velocity.y < 0. {
             self.velocity.y = 0.;
         }
         self.translate_by(self.velocity * dt);
@@ -168,7 +181,7 @@ fn load_model() -> Mesh {
 
 #[macroquad::main("Flight Simulator")]
 async fn main() {
-    let mut plane: Plane = Plane::new(100., 10., load_model());
+    let mut plane: Plane = Plane::new(load_model());
 
     let gravity = Vec3::Y * -0.5;
     let wind = Vec3::ZERO;
@@ -177,7 +190,7 @@ async fn main() {
         let dt = get_frame_time();
 
         clear_background(LIGHTGRAY);
-        draw_grid(50, 1.0, RED, GREEN);
+        draw_grid(1000, 2.0, RED, GREEN);
 
         let mut thrust = Vec3::ZERO;
         let mut torque = Vec3::ZERO;
@@ -186,7 +199,7 @@ async fn main() {
             break;
         }
         if is_key_down(KeyCode::W) {
-            thrust += plane.forward() * 0.5;
+            thrust += plane.forward() * 2.;
         }
         if is_key_down(KeyCode::S) {
             thrust += plane.backward() * 0.5;
@@ -214,6 +227,13 @@ async fn main() {
         plane.draw();
 
         set_camera(&plane.camera);
+
+        // set_camera(&Camera3D {
+        //     position: plane.center + plane.backward() * 10. + plane.up() * 10.,
+        //     target: plane.center,
+        //     up: Vec3::Y,
+        //     ..Default::default()
+        // });
 
         next_frame().await
     }
