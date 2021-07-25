@@ -6,6 +6,7 @@ struct Plane {
     right_wing_tip: Vec3,
     velocity: Vec3,
     angular_velocity: Vec3,
+    acceleration: Vec3,
     mesh: macroquad::models::Mesh,
     camera: Camera3D,
 }
@@ -18,6 +19,7 @@ impl Plane {
             right_wing_tip: _get_right_wing_tip_from_vertices(&mesh.vertices),
             velocity: Vec3::ZERO,
             angular_velocity: Vec3::ZERO,
+            acceleration: Vec3::ZERO,
             mesh,
             camera: Camera3D {
                 ..Default::default()
@@ -68,16 +70,20 @@ impl Plane {
         let mut res = Vec3::ZERO;
         for [i, j, k] in self.mesh.indices.chunks_exact(3).map(|index_group| {
             [
-                self.mesh.vertices[index_group[0] as usize].position,
-                self.mesh.vertices[index_group[1] as usize].position,
-                self.mesh.vertices[index_group[2] as usize].position,
+                self.mesh.vertices[index_group[0] as usize].position - self.center,
+                self.mesh.vertices[index_group[1] as usize].position - self.center,
+                self.mesh.vertices[index_group[2] as usize].position - self.center,
             ]
         }) {
             let side1 = i - j;
             let side2 = j - k;
 
+            let normal = side1.cross(side2).normalize();
             let area_vector = side1.cross(side2) * 0.5;
-            let force = self.velocity.dot(i.normalize()).powi(2) * area_vector;
+            let force = (self.velocity - (self.velocity.dot(normal) * normal))
+                .length()
+                .powi(2)
+                * area_vector;
             res += force;
         }
         res * 0.1
@@ -87,10 +93,10 @@ impl Plane {
         let aerodynamic_force = self.get_aerodynamic_force();
 
         draw_sphere(self.center, 0.1, None, BLUE);
-        let acceleration = aerodynamic_force + *thrust + *wind + *gravity;
+        self.acceleration = aerodynamic_force + *thrust + *wind + *gravity;
         let angular_acceleration = *torque;
         self.angular_velocity += angular_acceleration * dt;
-        self.velocity += acceleration * dt;
+        self.velocity += self.acceleration * dt;
         if self.center.y <= 1. && self.velocity.y < 0. {
             self.velocity.y = 0.;
         }
@@ -179,6 +185,10 @@ fn load_model() -> Mesh {
     }
 }
 
+fn pretty_vector(vector: &Vec3) -> String {
+    format!("[{:.2}, {:.2}, {:.2}]", vector.x, vector.y, vector.z)
+}
+
 #[macroquad::main("Flight Simulator")]
 async fn main() {
     let mut plane: Plane = Plane::new(load_model());
@@ -226,15 +236,37 @@ async fn main() {
         plane.update(dt, &thrust, &torque, &wind, &gravity);
         plane.draw();
 
+        set_default_camera();
+        draw_text(
+            &("Position    : ".to_owned() + &pretty_vector(&plane.center)),
+            20.,
+            30.,
+            20.,
+            RED,
+        );
+        draw_text(
+            &("Velocity    : ".to_owned() + &pretty_vector(&plane.velocity)),
+            20.,
+            50.,
+            20.,
+            RED,
+        );
+        draw_text(
+            &("Acceleration: ".to_owned() + &pretty_vector(&plane.acceleration)),
+            20.,
+            70.,
+            20.,
+            RED,
+        );
+        draw_text(
+            &("Angular Vel : ".to_owned() + &pretty_vector(&plane.angular_velocity)),
+            20.,
+            90.,
+            20.,
+            RED,
+        );
+
         set_camera(&plane.camera);
-
-        // set_camera(&Camera3D {
-        //     position: plane.center + plane.backward() * 10. + plane.up() * 10.,
-        //     target: plane.center,
-        //     up: Vec3::Y,
-        //     ..Default::default()
-        // });
-
         next_frame().await
     }
 }
