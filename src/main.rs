@@ -79,11 +79,9 @@ impl Plane {
             let side2 = j - k;
 
             let normal = side1.cross(side2).normalize();
-            let area_vector = side1.cross(side2) * 0.5;
-            let force = (self.velocity - (self.velocity.dot(normal) * normal))
-                .length()
-                .powi(2)
-                * area_vector;
+            let area = (side1.cross(side2) * 0.5).length();
+            let tangential_velocity = self.velocity - (self.velocity.dot(normal)) * normal;
+            let force = tangential_velocity.length().powi(2) * area * normal;
             res += force;
         }
         res * 0.1
