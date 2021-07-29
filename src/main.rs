@@ -69,7 +69,7 @@ impl Plane {
 
     fn get_aerodynamic_force_and_torque(&self) -> (Vec3, Vec3) {
         let mut res_force = Vec3::ZERO;
-        // let mut res_torque = Vec3::ZERO;
+        let mut res_torque = Vec3::ZERO;
         for [i, j, k] in self.mesh.indices.chunks_exact(3).map(|index_group| {
             [
                 self.mesh.vertices[index_group[0] as usize].position - self.center,
@@ -79,20 +79,26 @@ impl Plane {
         }) {
             let side1 = i - j;
             let side2 = j - k;
+            let centroid = (i + j + k) / 3.;
 
             let normal = side1.cross(side2).normalize();
             let area = (side1.cross(side2) * 0.5).length();
             let tangential_velocity = self.velocity - (self.velocity.dot(normal)) * normal;
             let force = tangential_velocity.length().powi(2) * area * normal;
+            let torque = -centroid.cross(force) * centroid.length_recip().powi(2);
 
+            res_torque += torque;
             res_force += force;
         }
-        (res_force * 0.1, Vec3::ZERO)
+        (
+            res_force * 0.1,
+            Vec3::ZERO,
+            // mat3(self.forward(), self.up(), self.right()).mul_vec3(res_torque) * 0.001,
+        )
     }
 
     fn update(&mut self, dt: f32, thrust: &Vec3, torque: &Vec3, wind: &Vec3, gravity: &Vec3) {
         let (aerodynamic_force, aerodynamic_torque) = self.get_aerodynamic_force_and_torque();
-
         self.acceleration = aerodynamic_force + *thrust + *wind + *gravity;
         let angular_acceleration = aerodynamic_torque + *torque;
         self.angular_velocity += angular_acceleration * dt;
@@ -119,6 +125,7 @@ impl Plane {
         self.angular_velocity = self.angular_velocity.clamp_length_max(5.);
         self.translate_by(self.velocity * dt);
         self.rotate_by(self.angular_velocity * dt);
+        self.angular_velocity *= 0.99;
     }
     fn up(&self) -> Vec3 {
         (self.right_wing_tip - self.center)
