@@ -240,22 +240,32 @@ async fn main() {
         if is_key_down(KeyCode::Escape) {
             break;
         }
-        if is_key_down(KeyCode::W) {
+        /*
+        thrust->up arrow
+        reverse thrust -> down arrow
+        roll left -> A
+        roll right -> D
+        pitch up -> W
+        pitch down -> S
+        yaw left -> Q
+        yaw right -> E
+        */
+        if is_key_down(KeyCode::Up) {
             thrust += plane.forward() * 2.;
         }
-        if is_key_down(KeyCode::S) {
+        if is_key_down(KeyCode::Down) {
             thrust += plane.backward() * 0.5;
         }
-        if is_key_down(KeyCode::Left) {
+        if is_key_down(KeyCode::Q) {
             torque.y = 0.1;
         }
-        if is_key_down(KeyCode::Right) {
+        if is_key_down(KeyCode::E) {
             torque.y = -0.1;
         }
-        if is_key_down(KeyCode::Up) {
+        if is_key_down(KeyCode::W) {
             torque.z = 0.1;
         }
-        if is_key_down(KeyCode::Down) {
+        if is_key_down(KeyCode::S) {
             torque.z = -0.1;
         }
         if is_key_down(KeyCode::A) {
