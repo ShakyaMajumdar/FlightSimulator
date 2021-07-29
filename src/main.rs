@@ -39,10 +39,11 @@ impl Plane {
         }
         self.head += move_vector;
         self.right_wing_tip += move_vector;
-        self.center += move_vector;
-        self.camera.position += move_vector;
-        self.camera.target += move_vector;
-        self.camera.up = self.up();
+        self.center = _get_center_from_vertices(&self.mesh.vertices);
+        let temp = _get_camera_vectors(&self);
+        self.camera.position = temp.0;
+        self.camera.target = temp.1;
+        self.camera.up = temp.2;
     }
 
     fn rotate_by_axis_angle(&mut self, axis: &Vec3, angle: f32) {
@@ -53,11 +54,11 @@ impl Plane {
         self.head = rotation_matrix.mul_vec3(self.head - self.center) + self.center;
         self.right_wing_tip =
             rotation_matrix.mul_vec3(self.right_wing_tip - self.center) + self.center;
-        self.camera.position =
-            rotation_matrix.mul_vec3(self.camera.position - self.center) + self.center;
-        self.camera.target =
-            rotation_matrix.mul_vec3(self.camera.target - self.center) + self.center;
-        self.camera.up = self.up()
+        self.center = _get_center_from_vertices(&self.mesh.vertices);
+        let temp = _get_camera_vectors(&self);
+        self.camera.position = temp.0;
+        self.camera.target = temp.1;
+        self.camera.up = temp.2;
     }
 
     fn rotate_by(&mut self, rotate_vector: Vec3) {
@@ -66,8 +67,9 @@ impl Plane {
         self.rotate_by_axis_angle(&self.right(), rotate_vector.z);
     }
 
-    fn get_aerodynamic_force(&self) -> Vec3 {
-        let mut res = Vec3::ZERO;
+    fn get_aerodynamic_force_and_torque(&self) -> (Vec3, Vec3) {
+        let mut res_force = Vec3::ZERO;
+        // let mut res_torque = Vec3::ZERO;
         for [i, j, k] in self.mesh.indices.chunks_exact(3).map(|index_group| {
             [
                 self.mesh.vertices[index_group[0] as usize].position - self.center,
@@ -82,22 +84,39 @@ impl Plane {
             let area = (side1.cross(side2) * 0.5).length();
             let tangential_velocity = self.velocity - (self.velocity.dot(normal)) * normal;
             let force = tangential_velocity.length().powi(2) * area * normal;
-            res += force;
+
+            res_force += force;
         }
-        res * 0.1
+        (res_force * 0.1, Vec3::ZERO)
     }
 
     fn update(&mut self, dt: f32, thrust: &Vec3, torque: &Vec3, wind: &Vec3, gravity: &Vec3) {
-        let aerodynamic_force = self.get_aerodynamic_force();
+        let (aerodynamic_force, aerodynamic_torque) = self.get_aerodynamic_force_and_torque();
 
-        draw_sphere(self.center, 0.1, None, BLUE);
         self.acceleration = aerodynamic_force + *thrust + *wind + *gravity;
-        let angular_acceleration = *torque;
+        let angular_acceleration = aerodynamic_torque + *torque;
         self.angular_velocity += angular_acceleration * dt;
         self.velocity += self.acceleration * dt;
         if self.center.y <= 1. && self.velocity.y < 0. {
             self.velocity.y = 0.;
         }
+        if self.center.y >= 49. && self.velocity.y > 0. {
+            self.velocity.y = 0.;
+        }
+        if self.center.x >= 500. {
+            self.translate_by(Vec3::X * -1000.);
+        }
+        if self.center.x <= -500. {
+            self.translate_by(Vec3::X * 1000.);
+        }
+        if self.center.z >= 500. {
+            self.translate_by(Vec3::Z * -1000.);
+        }
+        if self.center.z <= -500. {
+            self.translate_by(Vec3::Z * 1000.);
+        }
+        self.velocity = self.velocity.clamp_length_max(50.);
+        self.angular_velocity = self.angular_velocity.clamp_length_max(5.);
         self.translate_by(self.velocity * dt);
         self.rotate_by(self.angular_velocity * dt);
     }
@@ -157,6 +176,14 @@ fn _get_center_from_vertices(vertices: &Vec<macroquad::models::Vertex>) -> Vec3 
         .reduce(|current, new| current + new)
         .unwrap()
         / (vertices.len() as f32)
+}
+
+fn _get_camera_vectors(plane: &Plane) -> (Vec3, Vec3, Vec3) {
+    (
+        plane.center + plane.up() * 2. + plane.forward() * -2.,
+        plane.center + plane.forward() * 3.,
+        plane.up(),
+    )
 }
 
 fn load_model() -> Mesh {
