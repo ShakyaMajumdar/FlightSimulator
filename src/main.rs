@@ -92,8 +92,8 @@ impl Plane {
         }
         (
             res_force * 0.1,
-            Vec3::ZERO,
-            // mat3(self.forward(), self.up(), self.right()).mul_vec3(res_torque) * 0.001,
+            // Vec3::ZERO,
+            mat3(self.forward(), self.up(), self.right()).mul_vec3(res_torque) * 0.001,
         )
     }
 
@@ -262,10 +262,10 @@ async fn main() {
         if is_key_down(KeyCode::E) {
             torque.y = -0.1;
         }
-        if is_key_down(KeyCode::W) {
+        if is_key_down(KeyCode::S) {
             torque.z = 0.1;
         }
-        if is_key_down(KeyCode::S) {
+        if is_key_down(KeyCode::W) {
             torque.z = -0.1;
         }
         if is_key_down(KeyCode::A) {
