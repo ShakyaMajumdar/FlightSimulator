@@ -92,8 +92,8 @@ impl Plane {
         }
         (
             res_force * 0.1,
-            // Vec3::ZERO,
-            mat3(self.forward(), self.up(), self.right()).mul_vec3(res_torque) * 0.001,
+            Vec3::ZERO,
+            // mat3(self.forward(), self.up(), self.right()).mul_vec3(res_torque) * 0.001,
         )
     }
 
