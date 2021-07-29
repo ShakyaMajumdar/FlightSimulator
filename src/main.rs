@@ -246,10 +246,10 @@ async fn main() {
         if is_key_down(KeyCode::S) {
             thrust += plane.backward() * 0.5;
         }
-        if is_key_down(KeyCode::A) {
+        if is_key_down(KeyCode::Left) {
             torque.y = 0.1;
         }
-        if is_key_down(KeyCode::D) {
+        if is_key_down(KeyCode::Right) {
             torque.y = -0.1;
         }
         if is_key_down(KeyCode::Up) {
@@ -258,10 +258,10 @@ async fn main() {
         if is_key_down(KeyCode::Down) {
             torque.z = -0.1;
         }
-        if is_key_down(KeyCode::Left) {
+        if is_key_down(KeyCode::A) {
             torque.x = -0.1;
         }
-        if is_key_down(KeyCode::Right) {
+        if is_key_down(KeyCode::D) {
             torque.x = 0.1;
         }
 
