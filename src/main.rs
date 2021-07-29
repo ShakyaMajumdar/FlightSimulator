@@ -259,7 +259,6 @@ async fn main() {
         }
 
         plane.update(dt, &thrust, &torque, &wind, &gravity);
-        plane.draw();
 
         set_default_camera();
         draw_text(
@@ -292,6 +291,7 @@ async fn main() {
         );
 
         set_camera(&plane.camera);
+        plane.draw();
         next_frame().await
     }
 }
