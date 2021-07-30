@@ -40,10 +40,13 @@ impl Plane {
         self.head += move_vector;
         self.right_wing_tip += move_vector;
         self.center = _get_center_from_vertices(&self.mesh.vertices);
-        let temp = _get_camera_vectors(&self);
-        self.camera.position = temp.0;
-        self.camera.target = temp.1;
-        self.camera.up = temp.2;
+        self.camera.position += move_vector;
+        self.camera.target += move_vector;
+        self.camera.up = self.up();
+        // let temp = _get_camera_vectors(&self);
+        // self.camera.position = temp.0;
+        // self.camera.target = temp.1;
+        // self.camera.up = temp.2;
     }
 
     fn rotate_by_axis_angle(&mut self, axis: &Vec3, angle: f32) {
@@ -55,10 +58,17 @@ impl Plane {
         self.right_wing_tip =
             rotation_matrix.mul_vec3(self.right_wing_tip - self.center) + self.center;
         self.center = _get_center_from_vertices(&self.mesh.vertices);
-        let temp = _get_camera_vectors(&self);
-        self.camera.position = temp.0;
-        self.camera.target = temp.1;
-        self.camera.up = temp.2;
+
+        self.camera.position =
+            rotation_matrix.mul_vec3(self.camera.position - self.center) + self.center;
+        self.camera.target =
+            rotation_matrix.mul_vec3(self.camera.target - self.center) + self.center;
+
+        self.camera.up = self.up();
+        // let temp = _get_camera_vectors(&self);
+        // self.camera.position = temp.0;
+        // self.camera.target = temp.1;
+        // self.camera.up = temp.2;
     }
 
     fn rotate_by(&mut self, rotate_vector: Vec3) {
@@ -249,6 +259,7 @@ async fn main() {
         pitch down -> S
         yaw left -> Q
         yaw right -> E
+        zoom -> mouse wheel
         */
         if is_key_down(KeyCode::Up) {
             thrust += plane.forward() * 2.;
@@ -276,6 +287,11 @@ async fn main() {
         }
 
         plane.update(dt, &thrust, &torque, &wind, &gravity);
+        plane.camera.position += (if mouse_wheel().1 == 0. {
+            0.
+        } else {
+            mouse_wheel().1.signum()
+        }) * plane.camera.up;
 
         set_default_camera();
         draw_text(
